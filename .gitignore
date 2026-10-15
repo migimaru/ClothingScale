@@ -1,0 +1,11 @@
+dist/
+__pycache__/
+*.pyc
+*.zip
+*.unitypackage
+input/
+_validation/
+Library/
+Temp/
+Logs/
+UserSettings/

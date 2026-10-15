@@ -1,0 +1,28 @@
+{
+  "name": "com.migimaru.upperarm-scale-tool",
+  "displayName": "Avatar Clothing Scale Tool",
+  "version": "0.3.9",
+  "unity": "2022.3",
+  "description": "Batch-adjust clothing root and bone scales with reusable profiles and independent humanoid/name matching.",
+  "dependencies": {},
+  "vpmDependencies": {},
+  "legacyFiles": {
+    "Assets/Editor/OutfitUpperArmScaleWindow.cs": "72125998a3694a3408e486c90bfcc1e0",
+    "Assets/PersonalAvatarTools/Editor/OutfitUpperArmScaleWindow.cs": "37da749c74984f85a55c6a2f7736e6f2"
+  },
+  "author": {
+    "name": "migimaru",
+    "email": "migimaru.github@gmail.com",
+    "url": "https://github.com/migimaru"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/migimaru/ClothingScale.git"
+  },
+  "changelogUrl": "https://github.com/migimaru/ClothingScale/blob/main/Packages/com.migimaru.upperarm-scale-tool/CHANGELOG.md",
+  "url": "https://github.com/migimaru/ClothingScale/releases/download/0.3.9/com.migimaru.upperarm-scale-tool-0.3.9.zip",
+  "legacyPackages": [
+    "com.avatar-tools.upperarm-scale-tool"
+  ]
+}

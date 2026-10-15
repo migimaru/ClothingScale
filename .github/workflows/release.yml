@@ -1,0 +1,82 @@
+name: Build Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Read and validate package information
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          manifests = list(Path("Packages").glob("*/package.json"))
+          if len(manifests) != 1:
+              raise SystemExit("Expected one package")
+          manifest_path = manifests[0]
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          name, version = manifest["name"], manifest["version"]
+          if not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)+", name):
+              raise SystemExit("Invalid package name")
+          if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?", version):
+              raise SystemExit("Invalid version")
+          expected = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{version}/{name}-{version}.zip"
+          if manifest.get("url") != expected:
+              raise SystemExit("Release URL does not match repository/version")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              for key, value in {"PACKAGE_NAME": name, "VERSION": version, "MANIFEST_PATH": manifest_path.as_posix()}.items():
+                  env.write(f"{key}={value}\n")
+          PY
+
+      - name: Build and verify archives
+        run: python3 tools/build_release.py
+
+      - name: Verify package contents and create SHA256
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, zipfile
+          from pathlib import Path
+          package = Path("dist") / f"{os.environ['PACKAGE_NAME']}-{os.environ['VERSION']}.zip"
+          with zipfile.ZipFile(package) as archive:
+              for name in archive.namelist():
+                  parts = Path(name).parts
+                  if any(part.lower() in {".git", ".github", "tests", "_validation", "input", "library"} for part in parts):
+                      raise SystemExit(f"Unexpected package path: {name}")
+                  if Path(name).suffix.lower() in {".dll", ".fbx", ".prefab", ".unity"}:
+                      raise SystemExit(f"Unexpected package asset: {name}")
+          for path in Path("dist").iterdir():
+              if path.suffix in {".zip", ".unitypackage"}:
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  Path(str(path) + ".sha256").write_text(f"{digest}  {path.name}\n", encoding="utf-8")
+          PY
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists; published assets are not overwritten."
+            exit 1
+          fi
+          gh release create "$VERSION" \
+            "dist/${PACKAGE_NAME}-${VERSION}.zip" \
+            "dist/${PACKAGE_NAME}-${VERSION}.zip.sha256" \
+            "dist/${PACKAGE_NAME}-${VERSION}.unitypackage" \
+            "dist/${PACKAGE_NAME}-${VERSION}.unitypackage.sha256" \
+            "dist/UpperArmScaleTool-Packages-install.zip" \
+            "dist/UpperArmScaleTool-Packages-install.zip.sha256" \
+            "$MANIFEST_PATH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Clothing Scale $VERSION" \
+            --notes "導入方法と使い方はREADMEをご覧ください。VCC、またはUnityPackageから導入できます。"

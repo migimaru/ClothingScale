@@ -1,0 +1,11 @@
+{
+  "name": "AvatarScaleProfiles.Editor",
+  "rootNamespace": "PersonalAvatarTools.ScaleProfiles",
+  "references": [
+    "UpperArmScaleTool.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "autoReferenced": true
+}

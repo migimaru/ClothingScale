@@ -1,0 +1,7 @@
+{
+  "name": "UpperArmScaleTool.Editor",
+  "rootNamespace": "PersonalAvatarTools",
+  "references": [],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}
