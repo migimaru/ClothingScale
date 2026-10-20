@@ -56,6 +56,10 @@ namespace PersonalAvatarTools.ScaleProfiles
                 string side = left ? "left" : "right";
                 string letter = left ? "l" : "r";
                 string part = expected.Substring(side.Length);
+                // Some humanoid rigs label the upper arm simply "Left arm" / "Right arm".
+                // Keep side and whole-name matching so twist/helper bones cannot become candidates.
+                if (part == "upperarm" && (actual == side + "arm" || actual == "arm" + side ||
+                    actual == letter + "arm" || actual == "arm" + letter)) return true;
                 return actual == part + side || actual == part + letter || actual == letter + part;
             }
             return false;
@@ -87,28 +91,42 @@ namespace PersonalAvatarTools.ScaleProfiles
         public List<Transform> Find(BoneReference definition)
         {
             if (armature == null || definition == null) return new List<Transform>();
-            if (TryRole(definition, out var role))
+            string savedPath = PathFor(definition);
+            if (!TryRole(definition, out var role))
             {
-                // The selected outfit's CURRENT parent supplies an optional role-to-path hint.
-                // Nothing is resolved through the profile's original avatar or prefab.
-                var avatar = FindAvatarInParents(outfit.transform.parent);
-                var animator = avatar == null ? null : avatar.GetComponent<Animator>();
-                if (animator != null && animator.isHuman)
-                {
-                    var bodyBone = animator.GetBoneTransform(role);
-                    var bodyRig = AvatarBoneCatalog.FindArmature(avatar);
-                    if (bodyBone != null && bodyRig != null && bodyBone.IsChildOf(bodyRig))
-                    {
-                        string currentBodyPath = AvatarBoneCatalog.HierarchyPath(bodyBone, bodyRig);
-                        var pathMatches = MatchPath(currentBodyPath);
-                        if (pathMatches.Count > 0) return pathMatches;
-                    }
-                }
-                // Standard role names allow the same setting across different humanoid hierarchies.
-                return armature.GetComponentsInChildren<Transform>(true).Where(bone => bone != armature &&
-                    IsRoleName(WithoutAffixes(bone.name), role)).ToList();
+                // Legacy profiles may not store a humanoid role, and their source
+                // hierarchy may omit a shoulder/upper chest present in this outfit.
+                // Prefer the complete saved path, including any ambiguity it reports.
+                var pathMatches = MatchPath(savedPath);
+                if (pathMatches.Count > 0 || definition.isArmatureRoot || string.IsNullOrEmpty(savedPath)) return pathMatches;
+                string savedName = savedPath.Split('/').Last();
+                var roles = ((HumanBodyBones[])Enum.GetValues(typeof(HumanBodyBones))).Where(candidate =>
+                    candidate != HumanBodyBones.LastBone && IsRoleName(savedName, candidate)).ToArray();
+                if (roles.Length != 1) return pathMatches;
+                role = roles[0];
             }
-            return MatchPath(PathFor(definition));
+            // The selected outfit's CURRENT parent supplies an optional role-to-path hint.
+            // Nothing is resolved through the profile's original avatar or prefab.
+            var avatar = FindAvatarInParents(outfit.transform.parent);
+            var animator = avatar == null ? null : avatar.GetComponent<Animator>();
+            if (animator != null && animator.isHuman)
+            {
+                var bodyBone = animator.GetBoneTransform(role);
+                var bodyRig = AvatarBoneCatalog.FindArmature(avatar);
+                if (bodyBone != null && bodyRig != null && bodyBone.IsChildOf(bodyRig))
+                {
+                    string currentBodyPath = AvatarBoneCatalog.HierarchyPath(bodyBone, bodyRig);
+                    var pathMatches = MatchPath(currentBodyPath);
+                    if (pathMatches.Count > 0) return pathMatches;
+                }
+            }
+            // Standard role names allow the same setting across different humanoid hierarchies.
+            var roleMatches = armature.GetComponentsInChildren<Transform>(true).Where(bone => bone != armature &&
+                IsRoleName(WithoutAffixes(bone.name), role)).ToList();
+            if (roleMatches.Count > 0) return roleMatches;
+            // Humanoid roles do not require standard Transform names (e.g. Arm_L).
+            // A detached outfit can still match the exact path saved from its source avatar.
+            return string.IsNullOrEmpty(savedPath) ? new List<Transform>() : MatchPath(savedPath);
         }
 
         private List<Transform> MatchPath(string path)

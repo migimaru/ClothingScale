@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace PersonalAvatarTools.ScaleProfiles
 {
-    public sealed class OutfitScaleWindow : EditorWindow
+    public sealed partial class OutfitScaleWindow : EditorWindow
     {
         private ScaleProfileLibrary library;
         private ScaleProfileStore store;
@@ -57,6 +57,7 @@ namespace PersonalAvatarTools.ScaleProfiles
 
         private void OnDisable()
         {
+            CancelProfileEdit();
             Undo.undoRedoPerformed -= OnHierarchyChanged;
             EditorApplication.hierarchyChanged -= OnHierarchyChanged;
         }
@@ -79,40 +80,43 @@ namespace PersonalAvatarTools.ScaleProfiles
             using (new EditorGUI.DisabledScope(!canSaveProfiles || EditorApplication.isPlayingOrWillChangePlaymode))
             {
                 DrawProfileControls();
-                scroll = EditorGUILayout.BeginScrollView(scroll);
-                var profile = SelectedProfile;
-                if (profile != null)
+                using (new EditorGUI.DisabledScope(profileEdit != null))
                 {
-                    GUILayout.Space(8);
-                    GUILayout.Label("ボーンのScale設定", wrappedBold);
-                    DrawSettings(profile);
-                }
-                else
-                {
-                    EditorGUILayout.HelpBox("「追加」でプロファイルを作成してください。", MessageType.Info);
-                }
-                GUILayout.Space(12);
-                GUILayout.Label("Hierarchyで衣装の一番上を選択します（複数可）。非表示の衣装も対象です。",
-                    EditorStyles.wordWrappedMiniLabel);
-                using (new EditorGUI.DisabledScope(profile == null))
-                {
-                    if (GUILayout.Button("選択中の衣装を読み込む", GUILayout.Height(25)))
+                    scroll = EditorGUILayout.BeginScrollView(scroll);
+                    var profile = SelectedProfile;
+                    if (profile != null)
                     {
-                        LoadSelectedOutfits();
+                        GUILayout.Space(8);
+                        GUILayout.Label("ボーンのScale設定", wrappedBold);
+                        DrawSettings(profile);
                     }
-                }
-                GUILayout.Space(6);
-                RefreshTargetsIfNeeded();
-                var assignments = DrawOutfits();
-                EditorGUILayout.EndScrollView();
-                GUILayout.Space(4);
-                bool validSettings = profile != null && profile.settings.All(setting => TransformScaleUtility.IsValidScale(setting.scale));
-                using (new EditorGUI.DisabledScope(assignments.Count == 0 || !validSettings))
-                {
-                    if (GUILayout.Button("チェックした " + assignments.Select(assignment => assignment.target).Distinct().Count() +
-                        " 件に適用", GUILayout.Height(28)))
+                    else
                     {
-                        ApplyCheckedSettings();
+                        EditorGUILayout.HelpBox("「追加」でプロファイルを作成してください。", MessageType.Info);
+                    }
+                    GUILayout.Space(12);
+                    GUILayout.Label("Hierarchyで衣装の一番上を選択します（複数可）。非表示の衣装も対象です。",
+                        EditorStyles.wordWrappedMiniLabel);
+                    using (new EditorGUI.DisabledScope(profile == null))
+                    {
+                        if (GUILayout.Button("選択中の衣装を読み込む", GUILayout.Height(25)))
+                        {
+                            LoadSelectedOutfits();
+                        }
+                    }
+                    GUILayout.Space(6);
+                    RefreshTargetsIfNeeded();
+                    var assignments = DrawOutfits();
+                    EditorGUILayout.EndScrollView();
+                    GUILayout.Space(4);
+                    bool validSettings = profile != null && profile.settings.All(setting => TransformScaleUtility.IsValidScale(setting.scale));
+                    using (new EditorGUI.DisabledScope(assignments.Count == 0 || !validSettings))
+                    {
+                        if (GUILayout.Button("チェックした " + assignments.Select(assignment => assignment.target).Distinct().Count() +
+                            " 件に適用", GUILayout.Height(28)))
+                        {
+                            ApplyCheckedSettings();
+                        }
                     }
                 }
             }
@@ -120,7 +124,8 @@ namespace PersonalAvatarTools.ScaleProfiles
             {
                 EditorGUILayout.HelpBox(message, messageType);
             }
-            GUILayout.Label("設定は自動保存。適用の取り消しはCtrl+Z。結果を残すにはシーンを保存してください。",
+            GUILayout.Label(profileEdit != null ? "一覧の変更は「完了」で保存。「キャンセル」で変更を破棄します。" :
+                "設定は自動保存。適用の取り消しはCtrl+Z。結果を残すにはシーンを保存してください。",
                 EditorStyles.wordWrappedMiniLabel);
         }
 
@@ -141,31 +146,29 @@ namespace PersonalAvatarTools.ScaleProfiles
                 }
                 else
                 {
-                    var names = library.profiles.Select(profile => profile.name).ToArray();
-                    if (names.Length == 0)
+                    using (new EditorGUI.DisabledScope(profileEdit != null || library.profiles.Count == 0))
                     {
-                        using (new EditorGUI.DisabledScope(true))
+                        if (library.profiles.Count == 0)
                         {
                             EditorGUILayout.Popup(0, new[] { "未選択" });
                         }
-                    }
-                    else
-                    {
-                        int current = library.profiles.FindIndex(profile => profile.id == library.selectedProfileId);
-                        int selected = EditorGUILayout.Popup(Mathf.Max(0, current), names);
-                        if (selected != current)
+                        else
                         {
-                            library.selectedProfileId = library.profiles[selected].id;
-                            targetChecks.Clear();
-                            targetsNeedRefresh = true;
-                            SaveProfiles();
+                            int current = library.profiles.FindIndex(profile => profile.id == library.selectedProfileId);
+                            var names = library.profiles.Select(profile => new GUIContent(profile.name, profile.name)).ToArray();
+                            int selected = EditorGUILayout.Popup(Mathf.Max(0, current), names);
+                            if (selected != current) SelectProfile(library.profiles[selected].id);
                         }
                     }
                 }
             }
+            if (profileEdit != null)
+            {
+                DrawProfileEdit();
+            }
             using (new EditorGUILayout.HorizontalScope())
             {
-                using (new EditorGUI.DisabledScope(renaming))
+                using (new EditorGUI.DisabledScope(renaming || profileEdit != null))
                 {
                     if (GUILayout.Button("追加"))
                     {
@@ -178,7 +181,14 @@ namespace PersonalAvatarTools.ScaleProfiles
                         BeginRename();
                     }
                 }
-                using (new EditorGUI.DisabledScope(SelectedProfile == null))
+                using (new EditorGUI.DisabledScope(SelectedProfile == null || renaming || profileEdit != null))
+                {
+                    if (DrawProfileButton("削除", true))
+                    {
+                        DeleteSelectedProfile();
+                    }
+                }
+                using (new EditorGUI.DisabledScope(SelectedProfile == null || profileEdit != null))
                 {
                     if (GUILayout.Button(renaming ? "確定" : "名前変更"))
                     {
@@ -192,11 +202,11 @@ namespace PersonalAvatarTools.ScaleProfiles
                         }
                     }
                 }
-                using (new EditorGUI.DisabledScope(SelectedProfile == null || renaming))
+                using (new EditorGUI.DisabledScope(renaming || profileEdit != null || library.profiles.Count < 2))
                 {
-                    if (GUILayout.Button("削除"))
+                    if (DrawProfileButton("並び替え", false, profileEdit != null))
                     {
-                        DeleteSelectedProfile();
+                        BeginProfileEdit();
                     }
                 }
             }
@@ -226,6 +236,11 @@ namespace PersonalAvatarTools.ScaleProfiles
 
         private void HandleRenameKeys()
         {
+            if (profileEdit != null)
+            {
+                HandleProfileEditKeys();
+                return;
+            }
             if (!renaming || Event.current.type != EventType.KeyDown)
             {
                 return;
@@ -265,8 +280,7 @@ namespace PersonalAvatarTools.ScaleProfiles
         private void DeleteSelectedProfile()
         {
             var profile = SelectedProfile;
-            if (!EditorUtility.DisplayDialog("プロファイルを削除", "「" + profile.name +
-                "」を削除しますか？\n衣装へ適用済みのScaleはそのまま残ります。", "削除", "キャンセル"))
+            if (profile == null)
             {
                 return;
             }
@@ -335,7 +349,7 @@ namespace PersonalAvatarTools.ScaleProfiles
 
         private void AddBoneSetting(ScaleProfile profile, GameObject avatar, AvatarBoneChoice choice)
         {
-            if (!library.profiles.Contains(profile))
+            if (profileEdit != null || !library.profiles.Contains(profile))
             {
                 return;
             }
@@ -372,7 +386,7 @@ namespace PersonalAvatarTools.ScaleProfiles
 
         private void AddOutfitRootSetting(ScaleProfile profile)
         {
-            if (!library.profiles.Contains(profile) ||
+            if (profileEdit != null || !library.profiles.Contains(profile) ||
                 profile.settings.Any(setting => setting.targetKind == ScaleTargetKind.OutfitRoot))
             {
                 return;
