@@ -15,7 +15,7 @@ namespace PersonalAvatarTools.ScaleProfiles
         private readonly Dictionary<string, bool> targetChecks = new Dictionary<string, bool>();
         private List<OutfitScaleTargets> resolvedOutfits = new List<OutfitScaleTargets>();
         [SerializeField] private List<GameObject> loadedOutfits = new List<GameObject>();
-        private GameObject lastBoneSourceAvatar;
+        [SerializeField] private GameObject lastBoneSourceAvatar;
         private bool canSaveProfiles;
         private bool targetsNeedRefresh;
         private bool renaming;
@@ -25,6 +25,7 @@ namespace PersonalAvatarTools.ScaleProfiles
         private MessageType messageType = MessageType.None;
         private Vector2 scroll;
         private GUIStyle wrappedBold;
+        private PairScaleChoiceWindow pairScaleChoice;
         private ScaleProfile SelectedProfile => library?.profiles.FirstOrDefault(profile => profile.id == library.selectedProfileId);
 
         [MenuItem("Tools/Clothing Scale")]
@@ -57,6 +58,7 @@ namespace PersonalAvatarTools.ScaleProfiles
 
         private void OnDisable()
         {
+            if (pairScaleChoice != null) pairScaleChoice.Close();
             CancelProfileEdit();
             Undo.undoRedoPerformed -= OnHierarchyChanged;
             EditorApplication.hierarchyChanged -= OnHierarchyChanged;
@@ -77,7 +79,7 @@ namespace PersonalAvatarTools.ScaleProfiles
             HandleRenameKeys();
             GUILayout.Label("衣装のScaleをまとめて設定", wrappedBold);
             GUILayout.Space(6);
-            using (new EditorGUI.DisabledScope(!canSaveProfiles || EditorApplication.isPlayingOrWillChangePlaymode))
+            using (new EditorGUI.DisabledScope(!canSaveProfiles || EditorApplication.isPlayingOrWillChangePlaymode || pairScaleChoice != null))
             {
                 DrawProfileControls();
                 using (new EditorGUI.DisabledScope(profileEdit != null))
@@ -297,15 +299,16 @@ namespace PersonalAvatarTools.ScaleProfiles
             {
                 var setting = profile.settings[index];
                 bool remove;
+                bool bothSides = setting.useBothSides;
                 using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
                 {
                     EditorGUI.BeginChangeCheck();
                     using (new EditorGUILayout.HorizontalScope())
                     {
                         GUILayout.Label(setting.displayName, wrappedBold, GUILayout.MinWidth(0));
-                        if (setting.oppositeBone != null)
+                        if (PairedScaleSettings.HasOpposite(setting))
                         {
-                            setting.useBothSides = GUILayout.Toggle(setting.useBothSides, "左右セット",
+                            bothSides = GUILayout.Toggle(setting.useBothSides, "左右セット",
                                 EditorStyles.miniButton, GUILayout.Width(78));
                         }
                         remove = GUILayout.Button("−", EditorStyles.miniButton, GUILayout.Width(24));
@@ -319,7 +322,7 @@ namespace PersonalAvatarTools.ScaleProfiles
                         Vector3 edited = EditorGUILayout.Vector3Field(GUIContent.none, setting.scale, GUILayout.MinWidth(0));
                         setting.scale = ScaleAxisLinking.Update(setting.scale, edited, setting.linkAxes);
                     }
-                    if (EditorGUI.EndChangeCheck())
+                    if (EditorGUI.EndChangeCheck() && bothSides == setting.useBothSides)
                     {
                         targetsNeedRefresh = true;
                         SaveProfiles();
@@ -328,6 +331,11 @@ namespace PersonalAvatarTools.ScaleProfiles
                     {
                         GUILayout.Label("各軸には0より大きい有限の値を入力してください。", EditorStyles.wordWrappedMiniLabel);
                     }
+                }
+                if (bothSides != setting.useBothSides)
+                {
+                    ChangeBothSides(profile, setting, bothSides);
+                    GUIUtility.ExitGUI();
                 }
                 if (remove)
                 {
@@ -359,29 +367,101 @@ namespace PersonalAvatarTools.ScaleProfiles
                  BoneDefinitionResolver.SameDefinition(setting.primaryBone, choice.oppositeReference)));
             if (existing != null)
             {
-                bool reversed = BoneDefinitionResolver.SameDefinition(existing.primaryBone, choice.oppositeReference);
-                existing.primaryBone = reversed ? choice.oppositeReference : choice.primaryReference;
-                existing.oppositeBone = reversed ? choice.primaryReference : choice.oppositeReference;
-                if (choice.opposite == null)
+                foreach (var setting in profile.settings.Where(setting => setting.targetKind == ScaleTargetKind.Bone &&
+                    (BoneDefinitionResolver.SameDefinition(setting.primaryBone, choice.primaryReference) ||
+                     BoneDefinitionResolver.SameDefinition(setting.primaryBone, choice.oppositeReference))))
                 {
-                    existing.useBothSides = false;
+                    bool reversed = BoneDefinitionResolver.SameDefinition(setting.primaryBone, choice.oppositeReference);
+                    setting.primaryBone = reversed ? choice.oppositeReference : choice.primaryReference;
+                    setting.oppositeBone = reversed ? choice.primaryReference : choice.oppositeReference;
+                    if (choice.opposite == null) setting.useBothSides = false;
                 }
                 targetsNeedRefresh = true;
                 SaveProfiles();
                 SetMessage("ボーン定義を更新しました。保存済みのScaleは保持しています。", MessageType.Info);
                 return;
             }
-            profile.settings.Add(new ScaleSetting
+            Vector3 primaryScale = choice.primary.localScale;
+            Vector3 oppositeScale = choice.opposite != null ? choice.opposite.localScale : Vector3.one;
+            if (choice.opposite != null && !primaryScale.Equals(oppositeScale))
+            {
+                bool reversed = PairedScaleSettings.IsRight(choice.primaryReference);
+                pairScaleChoice = PairScaleChoiceWindow.Choose(reversed ? oppositeScale : primaryScale,
+                    reversed ? primaryScale : oppositeScale, true, avatar,
+                    reversed ? choice.oppositeReference : choice.primaryReference,
+                    reversed ? choice.primaryReference : choice.oppositeReference,
+                    (separate, scale) => CompleteBoneAddition(profile, choice, separate, scale,
+                        PairScaleChoiceWindow.DisplayedScale(primaryScale), PairScaleChoiceWindow.DisplayedScale(oppositeScale)));
+                return;
+            }
+            CompleteBoneAddition(profile, choice, false, primaryScale, primaryScale, oppositeScale);
+        }
+
+        private void CompleteBoneAddition(ScaleProfile profile, AvatarBoneChoice choice, bool separate, Vector3 scale,
+            Vector3 primaryScale, Vector3 oppositeScale)
+        {
+            if (profileEdit != null || !library.profiles.Contains(profile) || choice.primary == null ||
+                EditorApplication.isPlayingOrWillChangePlaymode) return;
+            var setting = new ScaleSetting
             {
                 displayName = choice.displayName,
+                pairDisplayName = choice.displayName,
                 targetKind = ScaleTargetKind.Bone,
                 primaryBone = choice.primaryReference,
                 oppositeBone = choice.oppositeReference,
                 useBothSides = choice.opposite != null,
-                scale = choice.primary.localScale
-            });
+                scale = scale
+            };
+            profile.settings.Add(setting);
+            if (separate && choice.opposite != null)
+            {
+                PairedScaleSettings.Split(profile, setting);
+                setting.scale = primaryScale;
+                PairedScaleSettings.Opposite(profile, setting).scale = oppositeScale;
+            }
+            SettingsStructureChanged();
+        }
+
+        private void ChangeBothSides(ScaleProfile profile, ScaleSetting setting, bool bothSides)
+        {
+            if (!PairedScaleSettings.HasOpposite(setting)) return;
+            if (!bothSides)
+            {
+                PairedScaleSettings.Split(profile, setting);
+                SettingsStructureChanged();
+                return;
+            }
+            var other = PairedScaleSettings.Opposite(profile, setting);
+            bool reversed = PairedScaleSettings.IsRight(setting.primaryBone);
+            var left = reversed ? other : setting;
+            var right = reversed ? setting : other;
+            if (other != null && left.scale.Equals(right.scale))
+            {
+                CompletePairMerge(profile, setting, setting.scale);
+                return;
+            }
+            // A deleted side can be restored, but its value must be chosen explicitly.
+            pairScaleChoice = PairScaleChoiceWindow.Choose(left?.scale, right?.scale, false,
+                lastBoneSourceAvatar ?? BoneDefinitionResolver.FindAvatarInParents(Selection.activeTransform),
+                reversed ? setting.oppositeBone : setting.primaryBone,
+                reversed ? setting.primaryBone : setting.oppositeBone,
+                (_, scale) => CompletePairMerge(profile, setting, scale));
+        }
+
+        private void CompletePairMerge(ScaleProfile profile, ScaleSetting setting, Vector3 scale)
+        {
+            if (profileEdit != null || !library.profiles.Contains(profile) || !profile.settings.Contains(setting) ||
+                EditorApplication.isPlayingOrWillChangePlaymode) return;
+            PairedScaleSettings.Merge(profile, setting, scale);
+            SettingsStructureChanged();
+        }
+
+        private void SettingsStructureChanged()
+        {
+            targetChecks.Clear();
             targetsNeedRefresh = true;
             SaveProfiles();
+            Repaint();
         }
 
         private void AddOutfitRootSetting(ScaleProfile profile)

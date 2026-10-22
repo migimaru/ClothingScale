@@ -28,6 +28,8 @@ namespace PersonalAvatarTools.ScaleProfiles
                 string json = File.ReadAllText(FilePath);
                 var library = JsonUtility.FromJson<ScaleProfileLibrary>(json);
                 Validate(library);
+                PairedScaleSettings.ExpandLegacySingles(library);
+                Validate(library);
                 return library;
             }
             catch (Exception exception)

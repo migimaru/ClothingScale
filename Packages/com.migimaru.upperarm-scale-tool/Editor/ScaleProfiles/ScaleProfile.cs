@@ -25,6 +25,7 @@ namespace PersonalAvatarTools.ScaleProfiles
     {
         public string id = Guid.NewGuid().ToString("N");
         public string displayName;
+        public string pairDisplayName;
         public ScaleTargetKind targetKind;
         public Vector3 scale = Vector3.one;
         public bool linkAxes = true;
