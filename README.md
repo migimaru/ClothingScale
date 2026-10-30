@@ -1,4 +1,4 @@
-# Clothing Scale
+# ClothingScale
 
 衣装全体とボーンのScaleを、プロファイルでまとめて設定するUnity Editorツールです。
 複数の衣装に同じ設定を適用でき、アバターやPrefabを置き直した場合も保存した設定を使えます。
@@ -21,11 +21,13 @@ Modular Avatarは必須ではありません。Setup Outfit前の衣装も読み
 
 ## インストール
 
+0.4.0からパッケージIDを変更しました。VCCでは新しい `ClothingScale` を追加してください。旧IDの更新操作だけでは新IDに切り替わりません。現在の旧ID（com.migimaru.upperarm-scale-tool）は新版追加時の除去対象です。0.3.5以前（com.avatar-tools.upperarm-scale-tool）を導入済みの場合は、先にVCCから旧版を削除してください。UnityPackageで導入する場合は、旧版の `com.migimaru.upperarm-scale-tool` または `com.avatar-tools.upperarm-scale-tool` を先に削除してください。保存済みプロファイルは削除せず、そのまま使用できます。
+
 ### VCCから導入
 
 1. [migimaru VPMをVCCに追加](https://migimaru.github.io/vpm/add/)します。
 2. VCCで対象プロジェクトの`Manage Project`を開きます。
-3. `Avatar Clothing Scale Tool`を追加します。
+3. `ClothingScale`を追加します。
 
 手動でリポジトリを追加する場合のRepository URL：
 
@@ -40,7 +42,7 @@ Unityの`Assets → Import Package → Custom Package...`からImportします�
 
 ### 1. プロファイルを作成
 
-`Tools → Clothing Scale`を開き、「追加」でプロファイルを作成します。
+`Tools → ClothingScale`を開き、「追加」でプロファイルを作成します。
 「名前変更」で名前を変更でき、作成したプロファイルはプルダウンから切り替えられます。
 プルダウンはUnity標準の表示です。
 

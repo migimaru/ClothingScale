@@ -1,0 +1,7 @@
+{
+  "name": "ClothingScale.Editor",
+  "rootNamespace": "ClothingScale",
+  "references": [],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}

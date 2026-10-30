@@ -75,12 +75,12 @@ jobs:
           gh release create "$VERSION" \
             "dist/${PACKAGE_NAME}-${VERSION}.zip" \
             "dist/${PACKAGE_NAME}-${VERSION}.zip.sha256" \
-            "dist/${PACKAGE_NAME}-${VERSION}.unitypackage" \
-            "dist/${PACKAGE_NAME}-${VERSION}.unitypackage.sha256" \
-            "dist/UpperArmScaleTool-Packages-install.zip" \
-            "dist/UpperArmScaleTool-Packages-install.zip.sha256" \
+            "dist/ClothingScale-${VERSION}.unitypackage" \
+            "dist/ClothingScale-${VERSION}.unitypackage.sha256" \
+            "dist/ClothingScale-Packages-install.zip" \
+            "dist/ClothingScale-Packages-install.zip.sha256" \
             "$MANIFEST_PATH" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Clothing Scale $VERSION" \
+            --title "ClothingScale $VERSION" \
             --notes-file dist/release-notes.md

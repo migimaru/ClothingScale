@@ -1,0 +1,11 @@
+{
+  "name": "ClothingScale.Profiles.Editor",
+  "rootNamespace": "ClothingScale.ScaleProfiles",
+  "references": [
+    "ClothingScale.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "autoReferenced": true
+}

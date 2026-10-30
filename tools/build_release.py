@@ -13,8 +13,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
-GUID_NAMESPACE = uuid.UUID('5b2abb34-967c-4c50-89d6-5a79f49c5b61')
-MAIN_SCRIPT_GUID = '72125998a3694a3408e486c90bfcc1e0'
+GUID_NAMESPACE = uuid.UUID('43e89357-a7ca-411d-adf6-0618f722279f')
 
 
 def json_bytes(value):
@@ -31,8 +30,7 @@ def ensure_metadata(package):
         if meta.exists():
             continue
         relative = path.relative_to(ROOT).as_posix()
-        guid = (MAIN_SCRIPT_GUID if path.name == 'OutfitUpperArmScaleWindow.cs'
-                else uuid.uuid5(GUID_NAMESPACE, relative).hex)
+        guid = uuid.uuid5(GUID_NAMESPACE, relative).hex
         header = 'fileFormatVersion: 2\nguid: ' + guid + '\n'
         if path.is_dir():
             content = header + 'folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n'
@@ -61,7 +59,8 @@ def public_manifest(manifest):
         raise ValueError('repository_url は https://github.com/所有者/リポジトリ 形式です')
     version, name = manifest['version'], manifest['name']
     result = dict(manifest)
-    result['author'] = {'name': config['author_name'].strip(), 'email': config['author_email'].strip()}
+    result['author'] = dict(manifest.get('author', {}), name=config['author_name'].strip(),
+                            email=config['author_email'].strip())
     result['url'] = config['repository_url'].rstrip('/') + '/releases/download/' + version + '/' + name + '-' + version + '.zip'
     return result, config
 
@@ -160,7 +159,7 @@ def main():
     install_files = {prefix + '/' + key: data for key, data in files.items()}
     install_files[prefix + '.meta'] = root_meta
     install_files['導入手順.md'] = (ROOT / '導入手順.md').read_bytes()
-    write_zip(dist / 'UpperArmScaleTool-Packages-install.zip', install_files)
+    write_zip(dist / 'ClothingScale-Packages-install.zip', install_files)
     entries = [(prefix, root_meta, None)]
     for path in sorted(package.rglob('*')):
         if path.suffix == '.meta':
@@ -168,7 +167,7 @@ def main():
         relative = path.relative_to(package).as_posix()
         entries.append((prefix + '/' + relative, Path(str(path) + '.meta').read_bytes(),
                         None if path.is_dir() else files[relative]))
-    unity = dist / (name + '-' + version + '.unitypackage')
+    unity = dist / ('ClothingScale-' + version + '.unitypackage')
     unity_package(unity, entries)
     verify(unity, entries, vpm, manifest)
     digest = hashlib.sha256(vpm.read_bytes()).hexdigest()
