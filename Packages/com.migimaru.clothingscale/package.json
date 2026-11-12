@@ -1,7 +1,7 @@
 {
   "name": "com.migimaru.clothingscale",
   "displayName": "ClothingScale",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "unity": "2022.3",
   "description": "Batch-adjust clothing root and bone scales with reusable profiles and independent humanoid/name matching.",
   "dependencies": {},
@@ -17,7 +17,7 @@
     "url": "https://github.com/migimaru/ClothingScale.git"
   },
   "changelogUrl": "https://github.com/migimaru/ClothingScale/blob/main/Packages/com.migimaru.clothingscale/CHANGELOG.md",
-  "url": "https://github.com/migimaru/ClothingScale/releases/download/0.4.0/com.migimaru.clothingscale-0.4.0.zip",
+  "url": "https://github.com/migimaru/ClothingScale/releases/download/1.0.0/com.migimaru.clothingscale-1.0.0.zip",
   "legacyPackages": [
     "com.migimaru.upperarm-scale-tool",
     "com.avatar-tools.upperarm-scale-tool"
